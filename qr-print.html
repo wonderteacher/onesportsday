@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ONE SPORTS DAY QR 안내 인쇄용</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;900&family=Oswald:wght@700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css">
+<!-- QR 생성 라이브러리 -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+
+body {
+  font-family: 'Pretendard', 'Noto Sans KR', sans-serif;
+  background: #f0f4ff;
+  padding: 24px;
+  min-height: 100vh;
+}
+
+/* ── 설정 패널 (화면에서만 보임) ── */
+.settings-panel {
+  background: white; border-radius: 16px;
+  padding: 20px 24px; margin-bottom: 24px;
+  box-shadow: 0 4px 20px rgba(18,86,180,0.1);
+  max-width: 680px; margin-inline: auto;
+}
+.settings-panel h2 {
+  font-size: 15px; font-weight: 700; color: #0A3A80;
+  margin-bottom: 14px; display: flex; align-items: center; gap: 8px;
+}
+.url-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.url-input {
+  flex: 1; min-width: 240px; border: 2px solid #B8D4F0; border-radius: 10px;
+  padding: 10px 14px; font-size: 13px;
+  font-family: 'Pretendard', 'Noto Sans KR', sans-serif;
+  outline: none; color: #0D1B2A;
+}
+.url-input:focus { border-color: #1256B4; }
+.gen-btn {
+  background: #1256B4; color: white; border: none;
+  border-radius: 10px; padding: 10px 20px;
+  font-size: 14px; font-weight: 700; cursor: pointer;
+  font-family: 'Pretendard', 'Noto Sans KR', sans-serif;
+}
+.gen-btn:hover { background: #0A3A80; }
+.print-btn {
+  background: white; color: #1256B4;
+  border: 2px solid #1256B4; border-radius: 10px;
+  padding: 10px 20px; font-size: 14px; font-weight: 700;
+  cursor: pointer; font-family: 'Pretendard', 'Noto Sans KR', sans-serif;
+}
+.print-btn:hover { background: #EEF4FF; }
+.url-note { font-size: 12px; color: #888; margin-top: 8px; line-height: 1.6; }
+
+/* ── 인쇄 카드들 ── */
+.cards-wrap {
+  display: flex; flex-direction: column; gap: 24px;
+  max-width: 680px; margin-inline: auto;
+}
+
+.qr-card {
+  background: white; border-radius: 20px;
+  padding: 32px 28px;
+  box-shadow: 0 4px 24px rgba(18,86,180,0.12);
+  page-break-inside: avoid;
+}
+
+/* 참여자 카드 */
+.qr-card.participant {
+  border-top: 8px solid #1256B4;
+}
+.qr-card.admin-card {
+  border-top: 8px solid #CC0000;
+  background: #1a1a2e;
+}
+
+.card-header { display: flex; align-items: center; gap: 16px; margin-bottom: 24px; }
+.card-header-text {}
+.card-eyebrow {
+  font-size: 11px; letter-spacing: 2px; font-weight: 700;
+  color: #1256B4; text-transform: uppercase; margin-bottom: 4px;
+}
+.admin-card .card-eyebrow { color: #FF6B6B; }
+.card-main-title {
+  font-family: 'Oswald', sans-serif; font-size: 32px;
+  color: #0A3A80; line-height: 1;
+}
+.admin-card .card-main-title { color: white; }
+.card-sub {
+  font-size: 13px; color: #666; margin-top: 4px;
+}
+.admin-card .card-sub { color: rgba(255,255,255,0.6); }
+
+.card-body { display: flex; gap: 24px; align-items: center; flex-wrap: wrap; }
+
+.qr-box {
+  background: white; border-radius: 12px;
+  padding: 12px; border: 3px solid #E2EAF4;
+  flex-shrink: 0;
+}
+.admin-card .qr-box { border-color: rgba(255,255,255,0.2); }
+
+#qr-participant, #qr-admin { width: 160px; height: 160px; }
+
+.card-info { flex: 1; min-width: 180px; }
+.info-row {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 10px 0; border-bottom: 1px solid #F4F7FB;
+  font-size: 13px;
+}
+.admin-card .info-row { border-bottom-color: rgba(255,255,255,0.08); }
+.info-row:last-child { border-bottom: none; }
+.info-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+.info-text { color: #444; line-height: 1.6; }
+.admin-card .info-text { color: rgba(255,255,255,0.75); }
+.info-text b { color: #0A3A80; }
+.admin-card .info-text b { color: #7BC8FF; }
+
+.url-display {
+  background: #EEF4FF; border-radius: 8px;
+  padding: 8px 12px; font-size: 11px; color: #1256B4;
+  font-weight: 700; word-break: break-all;
+  margin-top: 12px; letter-spacing: 0.3px;
+  border: 1px solid #B8D4F0;
+}
+.admin-card .url-display {
+  background: rgba(255,255,255,0.1); color: #7BC8FF;
+  border-color: rgba(255,255,255,0.2);
+}
+
+.divider-line {
+  border: none; border-top: 2px dashed #E2EAF4;
+  margin: 24px 0;
+}
+
+/* 행사 배너 (카드 사이) */
+.event-banner {
+  text-align: center; padding: 20px;
+  background: linear-gradient(135deg, #0A3A80, #1256B4);
+  border-radius: 16px; color: white;
+  page-break-inside: avoid;
+}
+.event-banner .banner-sub { font-size: 12px; opacity: 0.7; letter-spacing: 2px; margin-bottom: 6px; }
+.event-banner .banner-title {
+  font-family: 'Oswald', sans-serif; font-size: 36px; line-height: 1;
+  margin-bottom: 4px;
+}
+.event-banner .banner-ko {
+  font-size: 20px; font-weight: 900; color: #A8D4FF;
+  font-family: 'Pretendard', 'Noto Sans KR', sans-serif;
+}
+.event-banner .banner-info {
+  display: flex; justify-content: center; gap: 20px; flex-wrap: wrap;
+  margin-top: 14px; font-size: 13px; opacity: 0.85;
+}
+
+/* ── 인쇄 스타일 ── */
+@media print {
+  body { background: white; padding: 12px; }
+  .settings-panel { display: none !important; }
+  .cards-wrap { max-width: 100%; gap: 16px; }
+  .qr-card { box-shadow: none; border-radius: 12px; padding: 24px 20px; }
+  .event-banner { border-radius: 12px; }
+}
+</style>
+</head>
+<body>
+
+<!-- 설정 패널 -->
+<div class="settings-panel">
+  <h2>⚙️ URL 설정 후 QR 생성 → 인쇄</h2>
+  <div class="url-row">
+    <input class="url-input" id="url-input" type="text"
+      placeholder="https://계정명.github.io/onesportsday/onesportsday.html"
+      value="https://YOUR_ACCOUNT.github.io/onesportsday/onesportsday.html">
+    <button class="gen-btn" onclick="generateQRs()">QR 생성</button>
+    <button class="print-btn" onclick="window.print()">🖨 인쇄</button>
+  </div>
+  <p class="url-note">
+    ※ GitHub Pages 배포 후 실제 URL로 교체하세요.<br>
+    ※ 관리자 QR은 <code>?admin=1234</code> 파라미터가 자동으로 붙습니다. 비밀번호는 HTML 파일에서 변경 가능합니다.
+  </p>
+</div>
+
+<!-- 인쇄 카드들 -->
+<div class="cards-wrap">
+
+  <!-- 행사 배너 -->
+  <div class="event-banner">
+    <div class="banner-sub">2026 · EWUHS · SPORTS DAY</div>
+    <div class="banner-title">ONE SPORTS DAY</div>
+    <div class="banner-ko">청 백 전</div>
+    <div class="banner-info">
+      <span>📅 2026. 5. 14 (목)</span>
+      <span>⏰ 08:00 ~ 15:30</span>
+      <span>📍 이화금란고등학교</span>
+    </div>
+  </div>
+
+  <!-- 참여자 QR 카드 -->
+  <div class="qr-card participant">
+    <div class="card-header">
+      <div class="card-header-text">
+        <div class="card-eyebrow">학생 · 참여자용</div>
+        <div class="card-main-title">실시간 점수판</div>
+        <div class="card-sub">QR 스캔 후 바로 확인하세요</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="qr-box">
+        <div id="qr-participant"></div>
+      </div>
+      <div class="card-info">
+        <div class="info-row">
+          <span class="info-icon">🏆</span>
+          <span class="info-text"><b>실시간 청백전 점수</b>를 언제든 확인할 수 있어요</span>
+        </div>
+        <div class="info-row">
+          <span class="info-icon">📅</span>
+          <span class="info-text"><b>시간표</b>에서 현재 진행 중인 종목 확인</span>
+        </div>
+        <div class="info-row">
+          <span class="info-icon">📋</span>
+          <span class="info-text"><b>경기 요강</b>으로 규칙 빠르게 확인</span>
+        </div>
+        <div class="info-row">
+          <span class="info-icon">📍</span>
+          <span class="info-text"><b>본부 공지</b>에서 분실물·유의사항 확인</span>
+        </div>
+        <div class="url-display" id="url-display-p">URL을 입력하고 QR 생성을 눌러주세요</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 관리자 QR 카드 -->
+  <div class="qr-card admin-card">
+    <div class="card-header">
+      <div class="card-header-text">
+        <div class="card-eyebrow">🔒 관리자 전용 (선생님)</div>
+        <div class="card-main-title">관리자 모드</div>
+        <div class="card-sub">이 QR은 선생님끼리만 공유하세요</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="qr-box">
+        <div id="qr-admin"></div>
+      </div>
+      <div class="card-info">
+        <div class="info-row">
+          <span class="info-icon">⚽</span>
+          <span class="info-text"><b>종목별 승패 입력</b>으로 실시간 점수 반영</span>
+        </div>
+        <div class="info-row">
+          <span class="info-icon">📢</span>
+          <span class="info-text"><b>실시간 공지</b> 등록 (분실물·유의사항)</span>
+        </div>
+        <div class="info-row">
+          <span class="info-icon">✅</span>
+          <span class="info-text">입력 시 <b>확인 모달</b>으로 실수 방지</span>
+        </div>
+        <div class="info-row">
+          <span class="info-icon">⚠️</span>
+          <span class="info-text" style="color:#FF6B6B;"><b>비공개 유지</b> — 학생에게 노출 금지</span>
+        </div>
+        <div class="url-display" id="url-display-a">URL을 입력하고 QR 생성을 눌러주세요</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const ADMIN_PARAM = '?admin=1234'; // onesportsday.html의 ADMIN_PASSWORD와 동일하게
+
+let qrP = null, qrA = null;
+
+function generateQRs() {
+  const base = document.getElementById('url-input').value.trim();
+  if (!base) { alert('URL을 입력해주세요.'); return; }
+
+  const adminUrl = base + ADMIN_PARAM;
+
+  // 참여자 QR
+  document.getElementById('qr-participant').innerHTML = '';
+  qrP = new QRCode(document.getElementById('qr-participant'), {
+    text: base, width: 160, height: 160,
+    colorDark: '#0A3A80', colorLight: '#ffffff',
+    correctLevel: QRCode.CorrectLevel.M
+  });
+  document.getElementById('url-display-p').textContent = base;
+
+  // 관리자 QR
+  document.getElementById('qr-admin').innerHTML = '';
+  qrA = new QRCode(document.getElementById('qr-admin'), {
+    text: adminUrl, width: 160, height: 160,
+    colorDark: '#CC0000', colorLight: '#1a1a2e',
+    correctLevel: QRCode.CorrectLevel.M
+  });
+  document.getElementById('url-display-a').textContent = adminUrl;
+}
+
+// 페이지 로드 시 기본값으로 QR 생성 시도
+window.addEventListener('load', () => {
+  const val = document.getElementById('url-input').value;
+  if (!val.includes('YOUR_ACCOUNT')) generateQRs();
+});
+</script>
+</body>
+</html>
