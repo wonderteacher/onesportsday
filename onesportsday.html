@@ -1653,11 +1653,28 @@ body {
 .footer-admin-link:hover { color: rgba(255,255,255,0.35); cursor: default; }
 </style>
 
-<script>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getDatabase, ref, set, onValue, push, remove }
+  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyA4D3okL6HexMj_uvX5_ggJm2_ZYp41njQ",
+  authDomain: "onesportsday.firebaseapp.com",
+  databaseURL: "https://onesportsday-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "onesportsday",
+  storageBucket: "onesportsday.firebasestorage.app",
+  messagingSenderId: "270269906455",
+  appId: "1:270269906455:web:db10eaf288b2b3e262a652"
+};
+
+const app = initializeApp(firebaseConfig);
+const db  = getDatabase(app);
+
 // ══════════════════════════════
 // 관리자 모드 판별 (?admin=1234)
 // ══════════════════════════════
-const ADMIN_PASSWORD = "1234";
+const ADMIN_PASSWORD = "10000";
 const urlParams = new URLSearchParams(window.location.search);
 const IS_ADMIN = urlParams.get("admin") === ADMIN_PASSWORD;
 
@@ -1684,9 +1701,7 @@ const SCORE_EVENTS = {
   cheer:      { name:'응원전', sets:[{label:'응원전 점수'}], pts:'cheer' }
 };
 
-// jumprope: [{rank1:{class,count}, rank2:{class,count}, rank3:{class,count}}, ...] per grade
-// relay:    [{rank1:{class}, rank2:{class}, rank3:{class}}, ...] per grade
-let scores = JSON.parse(localStorage.getItem('osd_scores') || 'null') || {
+let scores = {
   soccer:    [null, null, null],
   dodgeball: [null, null, null],
   badminton: [null, null, null],
@@ -1694,12 +1709,18 @@ let scores = JSON.parse(localStorage.getItem('osd_scores') || 'null') || {
   relay:     [null, null],
   shoot:     [null],
   tug:       [null, null],
-  cheer:     [15]
+  cheer:     [{blue:0, white:0}]
 };
 
 function saveScores() {
-  localStorage.setItem('osd_scores', JSON.stringify(scores));
+  if (!IS_ADMIN) return;
+  set(ref(db, 'scores'), scores);
 }
+
+onValue(ref(db, 'scores'), (snapshot) => {
+  const data = snapshot.val();
+  if (data) { scores = data; buildAdmin(); updateAll(); }
+});
 
 // ── Calc totals ──
 function calcTotals() {
@@ -1750,14 +1771,13 @@ function calcTotals() {
   blue+=tb; white+=tw;
   if(tb||tw) breakdown.push({name:'줄다리기',blue:tb,white:tw});
 
-  // Cheer
-  const cheerVal = scores.cheer[0] || 0;
-  // cheer: if >0, we assign to each team relative to midpoint
-  if(cheerVal > 0) {
-    // Store as blue score directly for simplicity - admin sets blue score
-    blue += cheerVal;
-    breakdown.push({name:'응원전',blue:cheerVal,white:0});
-  }
+  // Cheer — {blue: 0~20, white: 0~20}
+  const cheer = scores.cheer && typeof scores.cheer[0] === 'object'
+    ? scores.cheer[0]
+    : { blue: scores.cheer?.[0] || 0, white: 0 };
+  const cb = cheer.blue || 0;
+  const cw = cheer.white || 0;
+  if(cb || cw) { blue += cb; white += cw; breakdown.push({name:'응원전', blue:cb, white:cw}); }
 
   return {blue, white, breakdown};
 }
@@ -1930,13 +1950,18 @@ function renderEventScores() {
   // Cheer
   const cheerEl = document.getElementById('cheer-sets');
   if(cheerEl) {
-    const val = scores.cheer[0] || 0;
+    const cheer = scores.cheer && typeof scores.cheer[0] === 'object'
+      ? scores.cheer[0]
+      : { blue: scores.cheer?.[0] || 0, white: 0 };
+    const cb = cheer.blue || 0;
+    const cw = cheer.white || 0;
     cheerEl.innerHTML = `<div class="set-row">
       <span class="set-label">응원전</span>
       <div class="set-result">
-        <span class="team-pill blue">청팀</span>
-        <span class="vs-text">|</span>
-        <span style="color:#FFD700;font-weight:700;font-size:14px;">${val}점 / 20점</span>
+        <span class="team-pill blue ${cb > cw ? 'win' : ''}">🔵 ${cb}점</span>
+        <span class="vs-text">VS</span>
+        <span class="team-pill white ${cw > cb ? 'win' : ''}">⚪ ${cw}점</span>
+        ${cb===0&&cw===0 ? '<span style="color:#bbb;font-size:12px;">미입력</span>' : ''}
       </div>
     </div>`;
   }
@@ -2007,7 +2032,9 @@ function renderScoreboard() {
     addRow('단체','💪 줄다리기 '+(i+1)+'set','10점', r==='blue'?10:0, r==='white'?10:0);
   });
   // Cheer
-  addRow('특별','📣 응원전','10~20점', scores.cheer[0]||0, 0);
+  const cheer = scores.cheer && typeof scores.cheer[0] === 'object'
+    ? scores.cheer[0] : { blue: scores.cheer?.[0] || 0, white: 0 };
+  addRow('특별','📣 응원전','0~20점', cheer.blue||0, cheer.white||0);
 
   const {blue, white} = calcTotals();
 
@@ -2184,15 +2211,46 @@ function renderAdmPanel(key) {
   }
 
   if (meta.type === 'cheer') {
-    const val = (scores.cheer && scores.cheer[0]) || 15;
+    const cheer = scores.cheer && typeof scores.cheer[0] === 'object'
+      ? scores.cheer[0] : { blue: 0, white: 0 };
+    const bv = cheer.blue || 0;
+    const wv = cheer.white || 0;
     html += `<div class="cheer-slider-wrap">
-      <div class="cheer-big-num" id="cheer-display">${val}</div>
-      <div class="cheer-sub">청팀 응원전 점수 (점수 확정 후 저장 버튼을 눌러주세요)</div>
-      <input type="range" min="10" max="20" step="1" value="${val}"
-        oninput="document.getElementById('cheer-display').textContent=this.value; document.getElementById('cheer-pending').textContent=this.value;">
-      <div class="cheer-labels"><span>10점</span><span>15점</span><span>20점</span></div>
-      <button onclick="askCheer()" style="margin-top:16px;width:100%;padding:14px;background:var(--blue);color:white;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;">
-        <span id="cheer-pending">${val}</span>점으로 저장
+      <div style="display:flex;gap:16px;margin-bottom:20px;">
+        <div style="flex:1;text-align:center;">
+          <div style="font-size:12px;font-weight:700;color:#7BC8FF;margin-bottom:6px;">🔵 청팀</div>
+          <div class="cheer-big-num" id="cheer-blue-display" style="color:#1256B4;">${bv}</div>
+        </div>
+        <div style="flex:1;text-align:center;">
+          <div style="font-size:12px;font-weight:700;color:#ccc;margin-bottom:6px;">⚪ 백팀</div>
+          <div class="cheer-big-num" id="cheer-white-display" style="color:#888;">${wv}</div>
+        </div>
+      </div>
+
+      <div style="margin-bottom:16px;">
+        <div class="rank-team-label">🔵 청팀 점수</div>
+        <div style="display:flex;align-items:center;gap:10px;margin-top:6px;">
+          <span style="font-size:12px;color:#aaa;min-width:20px;">0</span>
+          <input type="range" min="0" max="20" step="1" value="${bv}" style="flex:1;accent-color:var(--blue);"
+            oninput="document.getElementById('cheer-blue-display').textContent=this.value;">
+          <span style="font-size:12px;color:#aaa;min-width:20px;">20</span>
+        </div>
+        <div class="cheer-labels"><span>0점</span><span>10점</span><span>20점</span></div>
+      </div>
+
+      <div style="margin-bottom:20px;">
+        <div class="rank-team-label">⚪ 백팀 점수</div>
+        <div style="display:flex;align-items:center;gap:10px;margin-top:6px;">
+          <span style="font-size:12px;color:#aaa;min-width:20px;">0</span>
+          <input type="range" min="0" max="20" step="1" value="${wv}" style="flex:1;accent-color:#888;"
+            oninput="document.getElementById('cheer-white-display').textContent=this.value;">
+          <span style="font-size:12px;color:#aaa;min-width:20px;">20</span>
+        </div>
+        <div class="cheer-labels"><span>0점</span><span>10점</span><span>20점</span></div>
+      </div>
+
+      <button onclick="askCheer()" style="width:100%;padding:14px;background:var(--blue);color:white;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;">
+        저장하기
       </button>
     </div>`;
   }
@@ -2247,9 +2305,11 @@ function saveRankInput(key, idx) {
 function askRank() {} // legacy no-op
 
 function askCheer() {
-  const val = parseInt(document.getElementById('cheer-display').textContent);
-  openModal('📣', '응원전 점수', `청팀 응원전 점수를 <b>${val}점</b>으로 저장할까요?`, () => {
-    scores.cheer[0] = val;
+  const bv = parseInt(document.getElementById('cheer-blue-display').textContent) || 0;
+  const wv = parseInt(document.getElementById('cheer-white-display').textContent) || 0;
+  openModal('📣', '응원전 점수',
+    `🔵 청팀 <b>${bv}점</b> / ⚪ 백팀 <b>${wv}점</b>으로 저장할까요?`, () => {
+    scores.cheer[0] = { blue: bv, white: wv };
     saveScores(); updateAll(); buildAdmin();
   });
 }
@@ -2259,7 +2319,7 @@ function confirmReset() {
   if(btn) btn.className = 'modal-confirm danger';
   openModal('🗑', '전체 초기화', '모든 점수를 초기화할까요?<br>이 작업은 되돌릴 수 없습니다.', () => {
     scores = { soccer:[null,null,null], dodgeball:[null,null,null], badminton:[null,null,null],
-      jumprope:[null,null], relay:[null,null], shoot:[null], tug:[null,null], cheer:[15] };
+      jumprope:[null,null], relay:[null,null], shoot:[null], tug:[null,null], cheer:[{blue:0,white:0}] };
     saveScores(); buildAdmin(); updateAll();
   });
 }
@@ -2350,11 +2410,9 @@ const TYPE_META = {
   info:    { emoji: '✅', label: '안내' },
 };
 
-let notices = JSON.parse(localStorage.getItem('osd_notices') || '[]');
+let notices = [];
 
-function saveNotices() {
-  localStorage.setItem('osd_notices', JSON.stringify(notices));
-}
+function saveNotices() {} // Firebase로 대체
 
 function toggleNoticeInput() {
   if (!IS_ADMIN) return;
@@ -2370,18 +2428,22 @@ function submitNotice() {
   if(!text) return;
   const now = new Date();
   const time = String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
-  notices.unshift({ key: Date.now(), type, text, time, ts: Date.now() });
-  saveNotices();
+  push(ref(db, 'notices'), { type, text, time, ts: Date.now() });
   document.getElementById('notice-text').value = '';
-  renderNotices();
 }
 
 function deleteNotice(key) {
   if (!IS_ADMIN) return;
-  notices = notices.filter(n => String(n.key) !== String(key));
-  saveNotices();
-  renderNotices();
+  remove(ref(db, 'notices/' + key));
 }
+
+onValue(ref(db, 'notices'), (snapshot) => {
+  const data = snapshot.val();
+  notices = data
+    ? Object.entries(data).map(([key,v]) => ({...v, key})).sort((a,b) => b.ts - a.ts)
+    : [];
+  renderNotices();
+});
 
 function renderNotices() {
   const tl = document.getElementById('notice-timeline');
@@ -2409,9 +2471,9 @@ function renderNotices() {
 // ══════════════════════════════
 // 🎵 노래 신청
 // ══════════════════════════════
-let songs = JSON.parse(localStorage.getItem('osd_songs') || '[]');
+let songs = [];
 
-function saveSongs() { localStorage.setItem('osd_songs', JSON.stringify(songs)); }
+function saveSongs() {} // Firebase로 대체
 
 function submitSong() {
   const titleEl   = document.getElementById('song-title-input');
@@ -2423,23 +2485,29 @@ function submitSong() {
   const from    = fromEl.value.trim();
   const message = msgEl.value.trim();
   if (!title) { titleEl.focus(); titleEl.style.borderColor='#FF4444'; setTimeout(()=>titleEl.style.borderColor='',1200); return; }
-  songs.push({ id: Date.now(), title, artist, from, message, played: false });
-  saveSongs();
+  push(ref(db, 'songs'), { title, artist, from, message, played: false, ts: Date.now() });
   titleEl.value = ''; artistEl.value = ''; fromEl.value = ''; msgEl.value = '';
+}
+
+function togglePlayed(key) {
+  if (!IS_ADMIN) return;
+  const song = songs.find(s => s.key === key);
+  if (!song) return;
+  set(ref(db, 'songs/' + key + '/played'), !song.played);
+}
+
+function deleteSong(key) {
+  if (!IS_ADMIN) return;
+  remove(ref(db, 'songs/' + key));
+}
+
+onValue(ref(db, 'songs'), (snapshot) => {
+  const data = snapshot.val();
+  songs = data
+    ? Object.entries(data).map(([key,v]) => ({...v, key})).sort((a,b) => (a.ts||0)-(b.ts||0))
+    : [];
   renderSongs();
-}
-
-function togglePlayed(id) {
-  if (!IS_ADMIN) return;
-  songs = songs.map(s => s.id === id ? {...s, played: !s.played} : s);
-  saveSongs(); renderSongs();
-}
-
-function deleteSong(id) {
-  if (!IS_ADMIN) return;
-  songs = songs.filter(s => s.id !== id);
-  saveSongs(); renderSongs();
-}
+});
 
 function renderSongs() {
   const list  = document.getElementById('song-list');
@@ -2466,10 +2534,10 @@ function renderSongs() {
       </div>
       ${s.from ? `<div class="song-from">${s.from}</div>` : ''}
       ${IS_ADMIN ? `
-        <button class="song-play-btn ${s.played ? 'played' : ''}" onclick="togglePlayed(${s.id})">
+        <button class="song-play-btn ${s.played ? 'played' : ''}" onclick="togglePlayed('${s.key}')">
           ${s.played ? '✓ 완료' : '▶ 재생'}
         </button>
-        <button class="song-del" onclick="deleteSong(${s.id})" title="삭제">✕</button>
+        <button class="song-del" onclick="deleteSong('${s.key}')" title="삭제">✕</button>
       ` : ''}
     </div>
   `).join('');
